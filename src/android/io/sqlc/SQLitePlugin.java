@@ -195,15 +195,25 @@ public class SQLitePlugin extends CordovaPlugin {
      *
      * @param dbName   The name of the database file
      */
-    private SQLiteAndroidDatabase openDatabase(String dbname, boolean createFromResource, CallbackContext cbc, boolean old_impl) throws Exception {
+    private SQLiteAndroidDatabase openDatabase(String dbname, boolean createFromResource, CallbackContext cbc, boolean old_impl, String forcedDbPath) throws Exception {
         try {
             // ASSUMPTION: no db (connection/handle) is already stored in the map
             // [should be true according to the code in DBRunner.run()]
 
-            File dbfile = this.cordova.getActivity().getDatabasePath(dbname);
-
-            if (!dbfile.exists() && createFromResource) this.createFromResource(dbname, dbfile);
-
+        	File dbfile = null;
+        	
+        	if (forcedDbPath.isEmpty() || forcedDbPath == null || forcedDbPath.equals("null")) {
+        	
+	            dbfile = this.cordova.getActivity().getDatabasePath(dbname);
+	
+	            if (!dbfile.exists() && createFromResource) this.createFromResource(dbname, dbfile);
+            
+        	}
+        	else {
+        		Log.v("info", "using forcedDbPath " + forcedDbPath);
+        		dbfile = new File(forcedDbPath.replaceAll("file://", "") + File.separator + dbname);
+        	}
+        	
             if (!dbfile.exists()) {
                 dbfile.getParentFile().mkdirs();
             }
@@ -359,6 +369,7 @@ public class SQLitePlugin extends CordovaPlugin {
         private boolean createFromResource;
         private boolean oldImpl;
         private boolean bugWorkaround;
+        private String forcedDbPath;
 
         final BlockingQueue<DBQuery> q;
         final CallbackContext openCbc;
@@ -377,11 +388,18 @@ public class SQLitePlugin extends CordovaPlugin {
 
             this.q = new LinkedBlockingQueue<DBQuery>();
             this.openCbc = cbc;
+            
+            try {
+				this.forcedDbPath = options.has("forcedDbPath") ? options.getString("forcedDbPath") : new String();
+			} catch (JSONException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
         }
 
         public void run() {
             try {
-                this.mydb = openDatabase(dbname, this.createFromResource, this.openCbc, this.oldImpl);
+                this.mydb = openDatabase(dbname, this.createFromResource, this.openCbc, this.oldImpl, this.forcedDbPath);
             } catch (Exception e) {
                 Log.e(SQLitePlugin.class.getSimpleName(), "unexpected error, stopping db thread", e);
                 dbrmap.remove(dbname);
